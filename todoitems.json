@@ -1,0 +1,6 @@
+[
+    { "Id" : 1, "Title" : "Buy groceries", "IsCompleted" : false, "Type": "Task", "Description": "Need to buy milk, eggs, and bread", "AffectedUsers" : 1, "Severity": "Medium" },
+    { "Id": 2, "Title": "Walk the dog", "IsCompleted": true, "Type": "Task", "Description": "Take Rex to the park", "AffectedUsers": 1, "Severity": "Low" },
+    { "Id": 3, "Title": "The export does not work", "IsCompleted": false, "Type": "Bug", "Description": "Create export functionality", "AffectedUsers": 5, "Severity": "High", "AffectedVersion": "1.0.3" },
+    { "Id": 4, "Title": "More colors", "IsCompleted": false, "Type": "Feature", "Description": "UI? Buttons etc", "AffectedUsers": 10, "Severity": "Medium", "AffectedVersion": "1.1.0" }
+]

@@ -1,0 +1,36 @@
+@inherits LayoutComponentBase
+@using Radzen.Blazor
+@using Radzen
+
+<div style="display: flex; flex-direction: column; min-height: 100vh;">
+    <RadzenHeader Style="width: 100%; position: relative; z-index: 1000;">
+        <div style="padding: 1rem;">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                <RadzenLink Path="/" Text="Home" Style="color: white;" />
+                <RadzenLink Path="/hello" Text="Hello World" Style="color: white;" />
+                <RadzenLink Path="/todolist" Text="Todo List" Style="color: white;" />
+            </RadzenStack>
+        </div>
+    </RadzenHeader>
+    
+    <main style="flex: 1; position: relative;">
+        <div class="container">
+            @Body
+        </div>
+    </main>
+</div>
+
+<style>
+    :root {
+        --bg-main: #003049 
+    }
+    .rz-header {
+        position: relative !important;
+        background-color: var(--bg-main);
+    }
+    
+    main {
+        margin-top: 1rem;
+        padding-top: 1rem;
+    }
+</style>

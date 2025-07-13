@@ -1,0 +1,1084 @@
+@page "/todolist"
+@using CompleteProject.Services
+@using CompleteProject.ViewModels
+@using CompleteProject.Models
+@inject CompleteProject.Services.AzurePhotoService PhotoService
+@inject BugListViewModel BugViewModel
+@inject FeatureListViewModel FeatureViewModel
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Forms
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Components.Web
+@using Radzen.Blazor
+
+<PageTitle>Globomantics ToDo</PageTitle>
+
+<!-- Header Section -->
+<div class="modern-header">
+    <div class="header-content">
+        <div class="header-left">
+            <div class="header-icon">
+                <RadzenIcon Icon="check_circle" />
+            </div>
+            <div class="header-text">
+                <h1>Globomantics ToDo</h1>
+                <p>Manage bugs and features efficiently</p>
+            </div>
+        </div>
+        <div class="header-actions">
+            <RadzenButton Click="@ShowAddBugDialog" Icon="bug_report" Text="New Bug" 
+                ButtonStyle="ButtonStyle.Primary" Class="btn-bug" />
+            <RadzenButton Click="@ShowAddFeatureDialog" Icon="star" Text="New Feature" 
+                ButtonStyle="ButtonStyle.Primary" Class="btn-feature" />
+        </div>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div class="main-container">
+    <div class="content-grid">
+        <!-- Left Column - Tasks -->
+        <div class="tasks-column">
+            <!-- Search Section -->
+            <RadzenCard Class="search-card">
+                <div class="search-container">
+                    <div class="search-input-wrapper">
+                        <RadzenIcon Icon="search" Class="search-icon" />
+                        <RadzenTextBox @bind-Value="@searchText" Placeholder="Search bugs and features..." 
+                            Class="search-input" @oninput="@SearchItems" />
+                    </div>
+                </div>
+            </RadzenCard>
+
+            <!-- Unfinished Bugs -->
+            <RadzenCard Class="bugs-card">
+                <div class="card-header">
+                    <h3 class="card-title bugs-title">
+                        <RadzenIcon Icon="bug_report" />
+                        Unfinished Bugs (@filteredBugs.Count(b => !b.IsCompleted))
+                    </h3>
+                </div>
+                <div class="tasks-container">
+                    @if (filteredBugs.Count(b => !b.IsCompleted) == 0)
+                    {
+                        <div class="empty-state">
+                            <RadzenIcon Icon="check_circle" Class="empty-icon" />
+                            <p>No unfinished bugs</p>
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var bug in filteredBugs.Where(b => !b.IsCompleted))
+                        {
+                            <div class="task-item @(selectedBug?.Id == bug.Id ? "selected" : "")" 
+                                @onclick="() => SelectBug(bug)">
+                                <div class="task-content">
+                                    <RadzenCheckBox @bind-Value="bug.IsCompleted" 
+                                        Change="@((bool value) => UpdateBugStatus(bug))" Class="task-checkbox" />
+                                    <div class="task-details">
+                                        <div class="task-header">
+                                            <h4 class="task-title">@bug.Title</h4>
+                                            <span class="severity-badge @GetSeverityClass(bug.Severity)">
+                                                @bug.Severity
+                                            </span>
+                                        </div>
+                                        <p class="task-description">@bug.Description</p>
+                                        <div class="task-meta">
+                                            <span>v@bug.AffectedVersion</span>
+                                            <span>@bug.AffectedUsers users affected</span>
+                                        </div>
+                                    </div>
+                                    <div class="task-actions">
+                                        <RadzenButton Click="@(() => EditBug(bug))" ButtonStyle="ButtonStyle.Light" 
+                                            Icon="edit" Class="action-btn edit-btn" Size="ButtonSize.Small" />
+                                        <RadzenButton Click="@(() => DeleteBug(bug))" ButtonStyle="ButtonStyle.Light" 
+                                            Icon="delete" Class="action-btn delete-btn" Size="ButtonSize.Small" />
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </RadzenCard>
+
+            <!-- Unfinished Features -->
+            <RadzenCard Class="features-card">
+                <div class="card-header">
+                    <h3 class="card-title features-title">
+                        <RadzenIcon Icon="star" />
+                        Unfinished Features (@filteredFeatures.Count(f => !f.IsCompleted))
+                    </h3>
+                </div>
+                <div class="tasks-container">
+                    @if (filteredFeatures.Count(f => !f.IsCompleted) == 0)
+                    {
+                        <div class="empty-state">
+                            <RadzenIcon Icon="star" Class="empty-icon features-empty" />
+                            <p>No unfinished features</p>
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var feature in filteredFeatures.Where(f => !f.IsCompleted))
+                        {
+                            <div class="task-item feature-item @(selectedFeature?.Id == feature.Id ? "selected feature-selected" : "")" 
+                                @onclick="() => SelectFeature(feature)">
+                                <div class="task-content">
+                                    <RadzenCheckBox @bind-Value="feature.IsCompleted" 
+                                        Change="@((bool value) => UpdateFeatureStatus(feature))" Class="task-checkbox" />
+                                    <div class="task-details">
+                                        <div class="task-header">
+                                            <h4 class="task-title feature-title">@feature.Title</h4>
+                                            @if (feature.DueDate.HasValue)
+                                            {
+                                                <span class="due-date-badge">
+                                                    <RadzenIcon Icon="event" />
+                                                    @feature.DueDate.Value.ToString("MMM dd")
+                                                </span>
+                                            }
+                                        </div>
+                                        <p class="task-description">@feature.Description</p>
+                                    </div>
+                                    <div class="task-actions">
+                                        <RadzenButton Click="@(() => EditFeature(feature))" ButtonStyle="ButtonStyle.Light" 
+                                            Icon="edit" Class="action-btn edit-btn" Size="ButtonSize.Small" />
+                                        <RadzenButton Click="@(() => DeleteFeature(feature))" ButtonStyle="ButtonStyle.Light" 
+                                            Icon="delete" Class="action-btn delete-btn" Size="ButtonSize.Small" />
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </RadzenCard>
+
+            <!-- Completed Items -->
+            <RadzenCard Class="completed-card">
+                <div class="card-header">
+                    <h3 class="card-title completed-title">
+                        <RadzenIcon Icon="check_circle" />
+                        Completed Items (@(filteredBugs.Count(b => b.IsCompleted) + filteredFeatures.Count(f => f.IsCompleted)))
+                    </h3>
+                </div>
+                <div class="tasks-container">
+                    @if (filteredBugs.Count(b => b.IsCompleted) == 0 && filteredFeatures.Count(f => f.IsCompleted) == 0)
+                    {
+                        <div class="empty-state">
+                            <RadzenIcon Icon="hourglass_empty" Class="empty-icon" />
+                            <p>No completed items</p>
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var bug in filteredBugs.Where(b => b.IsCompleted))
+                        {
+                            <div class="task-item completed-item @(selectedBug?.Id == bug.Id ? "selected" : "")" 
+                                @onclick="() => SelectBug(bug)">
+                                <div class="task-content">
+                                    <RadzenCheckBox @bind-Value="bug.IsCompleted" 
+                                        Change="@((bool value) => UpdateBugStatus(bug))" Class="task-checkbox" />
+                                    <div class="task-details">
+                                        <div class="task-header">
+                                            <h4 class="task-title completed-title-text">@bug.Title</h4>
+                                            <span class="severity-badge @GetSeverityClass(bug.Severity)">
+                                                @bug.Severity
+                                            </span>
+                                        </div>
+                                        <p class="task-description completed-description">@bug.Description</p>
+                                    </div>
+                                    <div class="task-actions">
+                                        <RadzenButton Click="@(() => DeleteBug(bug))" ButtonStyle="ButtonStyle.Light" 
+                                            Icon="delete" Class="action-btn delete-btn" Size="ButtonSize.Small" />
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        @foreach (var feature in filteredFeatures.Where(f => f.IsCompleted))
+                        {
+                            <div class="task-item completed-item feature-item @(selectedFeature?.Id == feature.Id ? "selected feature-selected" : "")" 
+                                @onclick="() => SelectFeature(feature)">
+                                <div class="task-content">
+                                    <RadzenCheckBox @bind-Value="feature.IsCompleted" 
+                                        Change="@((bool value) => UpdateFeatureStatus(feature))" Class="task-checkbox" />
+                                    <div class="task-details">
+                                        <div class="task-header">
+                                            <h4 class="task-title feature-title completed-title-text">@feature.Title</h4>
+                                            @if (feature.DueDate.HasValue)
+                                            {
+                                                <span class="due-date-badge">
+                                                    <RadzenIcon Icon="event" />
+                                                    @feature.DueDate.Value.ToString("MMM dd")
+                                                </span>
+                                            }
+                                        </div>
+                                        <p class="task-description completed-description">@feature.Description</p>
+                                    </div>
+                                    <div class="task-actions">
+                                        <RadzenButton Click="@(() => DeleteFeature(feature))" ButtonStyle="ButtonStyle.Light" 
+                                            Icon="delete" Class="action-btn delete-btn" Size="ButtonSize.Small" />
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </RadzenCard>
+        </div>
+
+        <!-- Right Column - Sidebar -->
+        <div class="sidebar-column">
+            <RadzenCard Class="sidebar-card">
+                <div class="card-header">
+                    <h3 class="card-title sidebar-title">
+                        <RadzenIcon Icon="settings" />
+                        Manage Item
+                    </h3>
+                </div>
+                
+                @if (selectedBug != null)
+                {
+                    <div class="form-container">
+                        <div class="form-group">
+                            <RadzenLabel Text="Title" Class="form-label bug-label" />
+                            <RadzenTextBox @bind-Value="selectedBug.Title" Class="form-input" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <RadzenLabel Text="Description" Class="form-label bug-label" />
+                            <RadzenTextArea @bind-Value="selectedBug.Description" Class="form-textarea" Rows="4" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <RadzenLabel Text="Affected Version" Class="form-label bug-label" />
+                            <RadzenTextBox @bind-Value="selectedBug.AffectedVersion" Class="form-input" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <RadzenLabel Text="Affected Users" Class="form-label bug-label" />
+                            <RadzenNumeric @bind-Value="selectedBug.AffectedUsers" Class="form-input" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <RadzenLabel Text="Severity" Class="form-label bug-label" />
+                            <RadzenDropDown Data="@severityLevels" @bind-Value="selectedBug.Severity" Class="form-input" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <RadzenLabel Text="Attach to Parent Bug" Class="form-label bug-label" />
+                            <RadzenDropDown Data="@BugViewModel.Bugs.Where(b => b.Id != selectedBug.Id).ToList()" 
+                                            @bind-Value="selectedBug.AttachedBugId"
+                                            TextProperty="Title" ValueProperty="Id"
+                                            Class="form-input" AllowClear="true" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <RadzenLabel Text="Screenshot" Class="form-label bug-label" />
+                            <InputFile OnChange="UploadScreenshot" class="file-input" />
+                            @if (!string.IsNullOrEmpty(selectedBug.ScreenshotUrl))
+                            {
+                                <div class="screenshot-preview">
+                                    <a href="@selectedBug.ScreenshotUrl" target="_blank">
+                                        <img src="@selectedBug.ScreenshotUrl" alt="Screenshot" class="screenshot-img" />
+                                    </a>
+                                </div>
+                            }
+                        </div>
+                        
+                        <div class="form-actions">
+                            <RadzenButton Click="@SaveBug" Text="Save" ButtonStyle="ButtonStyle.Primary" 
+                                Class="btn-save-bug" />
+                            <RadzenButton Click="@ClearSelection" Text="Clear" ButtonStyle="ButtonStyle.Light" 
+                                Class="btn-clear" />
+                        </div>
+                    </div>
+                }
+                else if (selectedFeature != null)
+                {
+                    <div class="form-container">
+                        <div class="form-group">
+                            <RadzenLabel Text="Title" Class="form-label feature-label" />
+                            <RadzenTextBox @bind-Value="selectedFeature.Title" Class="form-input" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <RadzenLabel Text="Description" Class="form-label feature-label" />
+                            <RadzenTextArea @bind-Value="selectedFeature.Description" Class="form-textarea" Rows="4" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <RadzenLabel Text="Due Date" Class="form-label feature-label" />
+                            <RadzenDatePicker @bind-Value="selectedFeature.DueDate" Class="form-input" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <RadzenLabel Text="Attach to Parent Feature" Class="form-label feature-label" />
+                            <RadzenDropDown Data="@FeatureViewModel.Features.Where(f => f.Id != selectedFeature.Id).ToList()" 
+                                            @bind-Value="selectedFeature.AttachedFeatureId"
+                                            TextProperty="Title" ValueProperty="Id"
+                                            Class="form-input" AllowClear="true" />
+                        </div>
+                        
+                        <div class="form-actions">
+                            <RadzenButton Click="@SaveFeature" Text="Save" ButtonStyle="ButtonStyle.Primary" 
+                                Class="btn-save-feature" />
+                            <RadzenButton Click="@ClearSelection" Text="Clear" ButtonStyle="ButtonStyle.Light" 
+                                Class="btn-clear" />
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="empty-selection">
+                        <RadzenIcon Icon="touch_app" Class="empty-selection-icon" />
+                        <h4>Select an item</h4>
+                        <p>Click on a bug or feature to view and edit details</p>
+                    </div>
+                }
+            </RadzenCard>
+        </div>
+    </div>
+</div>
+
+<RadzenDialog />
+<RadzenNotification />
+
+<style>
+    /* Color Palette Variables */
+    :root {
+        --licorice: #171219;
+        --midnight-green: #225560;
+        --icterine: #edf060;
+        --pumpkin: #f0803c;
+        --dark-purple: #310d20;
+        --licorice-light: #48394e;
+        --midnight-green-light: #358597;
+        --icterine-dark: #b6b911;
+        --pumpkin-light: #f39b63;
+        --dark-purple-light: #77204e;
+    }
+
+    /* Global Styles */
+    body {
+        background-color: var(--licorice);
+        color: white;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    /* Header Styles */
+    .modern-header {
+        background: linear-gradient(135deg, var(--midnight-green) 0%, var(--dark-purple) 100%);
+        padding: 2rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        margin-bottom: 2rem;
+    }
+
+    .header-content {
+        max-width: 1400px;
+        margin: 0 auto;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .header-left {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .header-icon {
+        background-color: var(--icterine);
+        padding: 0.75rem;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .header-icon .rz-icon {
+        font-size: 2rem;
+        color: var(--licorice);
+    }
+
+    .header-text h1 {
+        margin: 0;
+        font-size: 2rem;
+        font-weight: bold;
+        color: white;
+    }
+
+    .header-text p {
+        margin: 0.25rem 0 0 0;
+        color: var(--icterine);
+        font-size: 0.9rem;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .btn-bug {
+        background-color: var(--pumpkin) !important;
+        border-color: var(--pumpkin) !important;
+        color: white !important;
+    }
+
+    .btn-bug:hover {
+        background-color: var(--pumpkin-light) !important;
+        border-color: var(--pumpkin-light) !important;
+    }
+
+    .btn-feature {
+        background-color: var(--icterine) !important;
+        border-color: var(--icterine) !important;
+        color: var(--licorice) !important;
+    }
+
+    .btn-feature:hover {
+        background-color: var(--icterine-dark) !important;
+        border-color: var(--icterine-dark) !important;
+    }
+
+    /* Main Container */
+    .main-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 0 2rem;
+    }
+
+    .content-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 2rem;
+        align-items: start;
+    }
+
+    @@media (max-width: 1024px) {
+        .content-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* Card Styles */
+    .rz-card {
+        background-color: rgba(34, 85, 96, 0.1) !important;
+        border: 1px solid rgba(34, 85, 96, 0.3) !important;
+        border-radius: 12px !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
+        margin-bottom: 1.5rem;
+    }
+
+    .search-card {
+        background-color: rgba(34, 85, 96, 0.2) !important;
+        border-color: rgba(34, 85, 96, 0.3) !important;
+    }
+
+    .bugs-card {
+        background-color: rgba(240, 128, 60, 0.1) !important;
+        border-color: rgba(240, 128, 60, 0.3) !important;
+    }
+
+    .features-card {
+        background-color: rgba(237, 240, 96, 0.1) !important;
+        border-color: rgba(237, 240, 96, 0.3) !important;
+    }
+
+    .completed-card {
+        background-color: rgba(49, 13, 32, 0.2) !important;
+        border-color: rgba(49, 13, 32, 0.3) !important;
+    }
+
+    .sidebar-card {
+        position: sticky;
+        top: 2rem;
+        background-color: rgba(34, 85, 96, 0.1) !important;
+        border-color: rgba(34, 85, 96, 0.3) !important;
+    }
+
+    /* Card Headers */
+    .card-header {
+        padding: 1.5rem 1.5rem 1rem 1.5rem;
+    }
+
+    .card-title {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .bugs-title {
+        color: var(--pumpkin);
+    }
+
+    .features-title {
+        color: var(--icterine);
+    }
+
+    .completed-title {
+        color: white;
+    }
+
+    .sidebar-title {
+        color: var(--icterine);
+    }
+
+    /* Search Styles */
+    .search-container {
+        padding: 1.5rem;
+    }
+
+    .search-input-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+
+    .search-icon {
+        position: absolute;
+        left: 1rem;
+        z-index: 1;
+        color: var(--icterine);
+        font-size: 1.1rem;
+    }
+
+    .search-input {
+        width: 100% !important;
+        padding-left: 3rem !important;
+        background-color: var(--licorice) !important;
+        border: 1px solid var(--midnight-green) !important;
+        color: white !important;
+        border-radius: 8px !important;
+    }
+
+    .search-input::placeholder {
+        color: #9ca3af !important;
+    }
+
+    /* Task Container */
+    .tasks-container {
+        padding: 0 1.5rem 1.5rem 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    /* Task Items */
+    .task-item {
+        padding: 1rem;
+        border-radius: 8px;
+        background-color: rgba(23, 18, 25, 0.5);
+        border-left: 4px solid var(--midnight-green);
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+
+    .task-item:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        transform: translateY(-1px);
+    }
+
+    .task-item.selected {
+        background-color: rgba(34, 85, 96, 0.3);
+        border-left-color: var(--icterine);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .feature-item {
+        border-left-color: var(--icterine);
+    }
+
+    .feature-item.feature-selected {
+        background-color: rgba(237, 240, 96, 0.2);
+        border-left-color: var(--icterine);
+    }
+
+    .completed-item {
+        border-left-color: var(--dark-purple);
+        background-color: rgba(23, 18, 25, 0.3);
+        opacity: 0.75;
+    }
+
+    .task-content {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    .task-checkbox {
+        margin-top: 0.25rem;
+    }
+
+    .task-details {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .task-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .task-title {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 500;
+        color: white;
+        flex: 1;
+        min-width: 0;
+        word-break: break-word;
+    }
+
+    .feature-title {
+        color: var(--icterine);
+    }
+
+    .completed-title-text {
+        text-decoration: line-through;
+        color: #9ca3af;
+    }
+
+    .task-description {
+        margin: 0;
+        font-size: 0.875rem;
+        color: #9ca3af;
+        line-height: 1.4;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .completed-description {
+        text-decoration: line-through;
+    }
+
+    .task-meta {
+        display: flex;
+        gap: 1rem;
+        margin-top: 0.5rem;
+        font-size: 0.75rem;
+        color: #6b7280;
+    }
+
+    .task-actions {
+        display: flex;
+        gap: 0.25rem;
+        margin-left: 0.5rem;
+    }
+
+    .action-btn {
+        width: 32px !important;
+        height: 32px !important;
+        padding: 0 !important;
+        border-radius: 6px !important;
+    }
+
+    .edit-btn:hover {
+        background-color: rgba(34, 85, 96, 0.3) !important;
+    }
+
+    .delete-btn:hover {
+        background-color: rgba(240, 128, 60, 0.3) !important;
+        color: var(--pumpkin) !important;
+    }
+
+    /* Badges */
+    .severity-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-weight: 500;
+        color: white;
+    }
+
+    .severity-critical {
+        background-color: var(--dark-purple);
+    }
+
+    .severity-high {
+        background-color: var(--pumpkin);
+    }
+
+    .severity-medium {
+        background-color: var(--icterine);
+        color: var(--licorice);
+    }
+
+    .severity-low {
+        background-color: var(--midnight-green);
+    }
+
+    .due-date-badge {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        background-color: rgba(237, 240, 96, 0.2);
+        border: 1px solid var(--icterine);
+        color: var(--icterine);
+    }
+
+    /* Empty States */
+    .empty-state {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: #9ca3af;
+    }
+
+    .empty-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        color: var(--midnight-green);
+    }
+
+    .features-empty {
+        color: var(--icterine);
+    }
+
+    .empty-selection {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: #9ca3af;
+    }
+
+    .empty-selection-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        color: var(--midnight-green);
+    }
+
+    .empty-selection h4 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1.25rem;
+        color: white;
+    }
+
+    .empty-selection p {
+        margin: 0;
+        font-size: 0.875rem;
+    }
+
+    /* Form Styles */
+    .form-container {
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .form-label {
+        font-weight: 500;
+        font-size: 0.875rem;
+    }
+
+    .bug-label {
+        color: var(--pumpkin);
+    }
+
+    .feature-label {
+        color: var(--icterine);
+    }
+
+    .form-input, .form-textarea {
+        background-color: var(--licorice) !important;
+        border: 1px solid var(--midnight-green) !important;
+        color: white !important;
+        border-radius: 6px !important;
+    }
+
+    .form-input:focus, .form-textarea:focus {
+        border-color: var(--icterine) !important;
+        box-shadow: 0 0 0 2px rgba(237, 240, 96, 0.2) !important;
+    }
+
+    .file-input {
+        padding: 0.5rem;
+        background-color: var(--licorice);
+        border: 1px solid var(--midnight-green);
+        border-radius: 6px;
+        color: white;
+    }
+
+    .screenshot-preview {
+        margin-top: 0.5rem;
+    }
+
+    .screenshot-img {
+        max-width: 200px;
+        max-height: 120px;
+        border: 1px solid var(--midnight-green);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: transform 0.2s ease;
+    }
+
+    .screenshot-img:hover {
+        transform: scale(1.05);
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 1rem;
+        justify-content: flex-end;
+    }
+
+    .btn-save-bug {
+        background-color: var(--pumpkin) !important;
+        border-color: var(--pumpkin) !important;
+        color: white !important;
+    }
+
+    .btn-save-feature {
+        background-color: var(--icterine) !important;
+        border-color: var(--icterine) !important;
+        color: var(--licorice) !important;
+    }
+
+    .btn-clear {
+        background-color: transparent !important;
+        border: 1px solid var(--midnight-green) !important;
+        color: white !important;
+    }
+
+    .btn-clear:hover {
+        background-color: rgba(34, 85, 96, 0.2) !important;
+    }
+
+    /* Responsive Design */
+    @@media (max-width: 768px) {
+        .main-container {
+            padding: 0 1rem;
+        }
+
+        .modern-header {
+            padding: 1.5rem;
+        }
+
+        .header-content {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .header-actions {
+            width: 100%;
+            justify-content: flex-start;
+        }
+
+        .task-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.25rem;
+        }
+
+        .task-meta {
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .form-actions {
+            flex-direction: column;
+        }
+    }
+</style>
+
+@code {
+    private string? uploadedScreenshotUrl;
+    private string searchText = "";
+    private List<Bug> filteredBugs = new();
+    private List<Feature> filteredFeatures = new();
+    private Bug? selectedBug;
+    private Feature? selectedFeature;
+    private List<string> severityLevels = new List<string> { "Low", "Medium", "High", "Critical" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await BugViewModel.LoadBugsAsync();
+        await FeatureViewModel.LoadFeaturesAsync();
+        FilterItems();
+    }
+
+    private void SearchItems()
+    {
+        FilterItems();
+    }
+
+    private void FilterItems()
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            filteredBugs = BugViewModel.Bugs.ToList();
+            filteredFeatures = FeatureViewModel.Features.ToList();
+        }
+        else
+        {
+            filteredBugs = BugViewModel.Bugs
+                .Where(b => b.Title.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                            (b.Description != null && b.Description.Contains(searchText, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+            filteredFeatures = FeatureViewModel.Features
+                .Where(f => f.Title.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                            (f.Description != null && f.Description.Contains(searchText, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+        }
+    }
+
+    private void SelectBug(Bug bug)
+    {
+        selectedBug = bug;
+        selectedFeature = null;
+    }
+
+    private void SelectFeature(Feature feature)
+    {
+        selectedFeature = feature;
+        selectedBug = null;
+    }
+
+    private async Task UpdateBugStatus(Bug bug)
+    {
+        await BugViewModel.UpdateBugAsync(bug);
+        StateHasChanged();
+    }
+
+    private async Task UpdateFeatureStatus(Feature feature)
+    {
+        await FeatureViewModel.UpdateFeatureAsync(feature);
+        StateHasChanged();
+    }
+
+    private void ShowAddBugDialog()
+    {
+        selectedBug = new Bug
+        {
+            Title = "",
+            Description = "",
+            IsCompleted = false,
+            AffectedVersion = "",
+            AffectedUsers = 0,
+            Severity = "Medium"
+        };
+        selectedFeature = null;
+    }
+
+    private void ShowAddFeatureDialog()
+    {
+        selectedFeature = new Feature
+        {
+            Title = "",
+            Description = "",
+            IsCompleted = false,
+            DueDate = null
+        };
+        selectedBug = null;
+    }
+
+    private void EditBug(Bug bug)
+    {
+        selectedBug = bug;
+        selectedFeature = null;
+    }
+
+    private void EditFeature(Feature feature)
+    {
+        selectedFeature = feature;
+        selectedBug = null;
+    }
+
+    private async Task DeleteBug(Bug bug)
+    {
+        await BugViewModel.DeleteBugAsync(bug.Id);
+        await BugViewModel.LoadBugsAsync();
+        FilterItems();
+        if (selectedBug == bug)
+            selectedBug = null;
+    }
+
+    private async Task DeleteFeature(Feature feature)
+    {
+        await FeatureViewModel.DeleteFeatureAsync(feature.Id);
+        await FeatureViewModel.LoadFeaturesAsync();
+        FilterItems();
+        if (selectedFeature == feature)
+            selectedFeature = null;
+    }
+
+    private async Task SaveBug()
+    {
+        if (selectedBug != null)
+        {
+            if (selectedBug.Id == 0)
+                await BugViewModel.AddBugAsync(selectedBug);
+            else
+                await BugViewModel.UpdateBugAsync(selectedBug);
+
+            await BugViewModel.LoadBugsAsync();
+            FilterItems();
+            ClearSelection();
+        }
+    }
+
+    private async Task SaveFeature()
+    {
+        if (selectedFeature != null)
+        {
+            if (selectedFeature.Id == 0)
+                await FeatureViewModel.AddFeatureAsync(selectedFeature);
+            else
+                await FeatureViewModel.UpdateFeatureAsync(selectedFeature);
+
+            await FeatureViewModel.LoadFeaturesAsync();
+            FilterItems();
+            ClearSelection();
+        }
+    }
+
+    private void ClearSelection()
+    {
+        selectedBug = null;
+        selectedFeature = null;
+        StateHasChanged();
+    }
+
+    private string GetSeverityClass(string severity)
+    {
+        return severity?.ToLower() switch
+        {
+            "critical" => "severity-critical",
+            "high" => "severity-high",
+            "medium" => "severity-medium",
+            "low" => "severity-low",
+            _ => "severity-medium"
+        };
+    }
+
+    private async Task UploadScreenshot(InputFileChangeEventArgs e)
+    {
+        if (selectedBug == null) return;
+        var file = e.File;
+        var url = await PhotoService.UploadPhotoAsync(file);
+        selectedBug.ScreenshotUrl = url;
+        await SaveBug();
+        uploadedScreenshotUrl = url;
+        StateHasChanged();
+    }
+}
