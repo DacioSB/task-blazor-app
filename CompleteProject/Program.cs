@@ -11,8 +11,9 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+string dbPath = Path.Combine(builder.Environment.ContentRootPath, "Data", "todo.db");
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlite("Data Source=/home/docitu/Documents/csharp/blazor_complete_project/CompleteProject/Data/todo.db"));
+    options.UseSqlite($"Data Source={dbPath}"));
 builder.Services.AddRadzenComponents();
 builder.Services.AddScoped<IBugRepository, BugRepository>();
 builder.Services.AddScoped<IFeatureRepository, FeatureRepository>();
