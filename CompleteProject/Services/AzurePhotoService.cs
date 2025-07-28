@@ -11,8 +11,13 @@ public class AzurePhotoService
 
     public AzurePhotoService(IConfiguration configuration)
     {
-        _connectionString = configuration["AzureBlob:ConnectionString"] ?? throw new ArgumentNullException("AzureBlob:ConnectionString");
-        _containerName = configuration["AzureBlob:ContainerName"] ?? throw new ArgumentNullException("AzureBlob:ContainerName");
+        _connectionString = Environment.GetEnvironmentVariable("AZURE_STORAGE_CONNECTION_STRING") 
+            ?? configuration["AzureBlob:ConnectionString"] 
+            ?? throw new ArgumentNullException("Azure Storage Connection String not found");
+            
+        _containerName = Environment.GetEnvironmentVariable("AZURE_STORAGE_CONTAINER_NAME")
+            ?? configuration["AzureBlob:ContainerName"]
+            ?? throw new ArgumentNullException("Container Name not found");
     }
     
     public async Task<string> UploadPhotoAsync(IBrowserFile file)
